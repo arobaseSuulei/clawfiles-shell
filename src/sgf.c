@@ -6,7 +6,7 @@ int inode_actuel=0;
 
 int allouer_inode(void){
    
-    // parcours de tous les inodes
+    // parcours de tous les inodes pour trouver non occupé
     
 
 }
