@@ -34,7 +34,7 @@ typedef struct {
     int magic_number;
     int nb_inodes_utilises;
     int nb_blocs_utilises;
-    int inode_bitmap[64 / 32 + 1];
+    int inode_bitmap[3]; // 64 / 32 + 1
     int bloc_bitmap[256 / 32 + 1];
 } superbloc;
 
