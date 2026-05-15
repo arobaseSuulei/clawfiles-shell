@@ -1,0 +1,143 @@
+// Initialise la table des fichiers ouverts et remet à la racine */
+static void reinit(void) {
+    int i;
+    for (i = 0; i < MAX_FICHIERS_OUVERTS; i++) {
+        table_fichiers[i].num_inode = -1;
+        table_fichiers[i].position  = 0;
+        table_fichiers[i].mode      = -1;
+    }
+    inode_courant = 0;
+    strncpy(chemin_courant, "/", MAX_CHEMIN);
+}
+
+//  Test 1 : formatage du disque
+
+static void test_formater(void) {
+    printf("[TEST 1] formater()...\n");
+
+    formater();
+
+    assert(disque.superbloc.nb_inodes        == NB_INODES);
+    assert(disque.superbloc.nb_blocs         == NB_BLOCS);
+    assert(disque.superbloc.nb_inodes_libres == NB_INODES - 1);
+    assert(disque.superbloc.nb_blocs_libres  == NB_BLOCS  - 1);
+    assert(disque.inodes[0].type_fichier     == TYPE_REPERTOIRE);
+
+    printf("  PASS\n");
+}
+
+//Test 2 : création de répertoire
+static void test_mkdir(void) {
+    printf("[TEST 2] mymkdir()...\n");
+
+    inode_courant = 0;
+    int res = mymkdir("documents");
+    assert(res != -1);
+
+    int ni = chercher_inode("documents", 0);
+    assert(ni != -1);
+    assert(disque.inodes[ni].type_fichier == TYPE_REPERTOIRE);
+    assert(disque.inodes[ni].nlinks       == 2);
+
+    printf("  PASS (inode %d)\n", ni);
+}
+
+//Test 3 : écriture puis lecture d'un fichier
+
+static void test_ecriture_lecture(void) {
+    printf("[TEST 3] mywrite() / myread()...\n");
+
+    inode_courant    = 0;
+    const char *txt  = "Projet SGF - IATIC3 2026";
+    int         len  = (int)strlen(txt);
+
+    //Écriture 
+    int fd = myopen("readme.txt", MODE_ECRITURE);
+    assert(fd != -1);
+    assert(mywrite(fd, txt, len) == len);
+    myclose(fd);
+
+    //Vérification de la taille dans l'inode 
+    int ni = chercher_inode("readme.txt", 0);
+    assert(ni != -1);
+    assert(disque.inodes[ni].taille == len);
+
+    // Lecture 
+    char buf[256];
+    memset(buf, 0, sizeof(buf));
+    fd = myopen("readme.txt", MODE_LECTURE);
+    assert(fd != -1);
+    int lus = myread(fd, buf, sizeof(buf));
+    myclose(fd);
+
+    assert(lus == len);
+    assert(strncmp(buf, txt, len) == 0);
+
+    printf("  PASS (lu : \"%s\")\n", buf);
+}
+
+//Test 4 : persistance - sauvegarde puis rechargement
+
+static void test_persistance(void) {
+    printf("[TEST 4] sauvegarder() + charger()...\n");
+
+    int ni_docs  = chercher_inode("documents", 0);
+    int ni_read  = chercher_inode("readme.txt", 0);
+    int taille   = disque.inodes[ni_read].taille;
+    int lib_i    = disque.superbloc.nb_inodes_libres;
+    int lib_b    = disque.superbloc.nb_blocs_libres;
+
+    sauvegarder();
+
+    // Simule un redémarrage : remet la structure à zéro 
+    memset(&disque, 0, sizeof(disk));
+    reinit();
+
+    charger();
+
+    // Vérifie que le superbloc est intact 
+    assert(disque.superbloc.nb_inodes_libres == lib_i);
+    assert(disque.superbloc.nb_blocs_libres  == lib_b);
+
+    // Vérifie que les fichiers/répertoires sont toujours là 
+    assert(chercher_inode("documents", 0) == ni_docs);
+    assert(chercher_inode("readme.txt", 0) == ni_read);
+    assert(disque.inodes[ni_read].taille == taille);
+
+    // Relit le contenu après rechargement 
+    char buf[256];
+    memset(buf, 0, sizeof(buf));
+    int fd = myopen("readme.txt", MODE_LECTURE);
+    assert(fd != -1);
+    int lus = myread(fd, buf, sizeof(buf));
+    myclose(fd);
+
+    assert(lus == taille);
+    assert(strcmp(buf, "Projet SGF - IATIC3 2026") == 0);
+
+    printf("  PASS (données préservées après rechargement)\n");
+}
+
+//Test 5 : afficher_df après les opérations
+
+static void test_df(void) {
+    printf("[TEST 5] afficher_df()...\n");
+    afficher_df();
+    printf("  PASS\n");
+}
+
+int main(void) {
+    printf("Tests de validation \n");
+
+    remove("disk.img");
+    reinit();
+
+    test_formater();
+    test_mkdir();
+    test_ecriture_lecture();
+    test_persistance();
+    test_df();
+
+    printf("\n>>> Tous les tests ont réussi ! <<<\n");
+    return 0;
+}
