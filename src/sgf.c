@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "sgf.h"
-
 disk  disque;
 int   inode_courant = 0;
 char  chemin_courant[256] = "/";
